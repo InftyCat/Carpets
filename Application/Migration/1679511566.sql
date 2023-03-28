@@ -1,0 +1,2 @@
+ALTER TABLE cells RENAME COLUMN cell_position TO pos;
+ALTER TABLE cells ALTER COLUMN info SET NOT NULL;

@@ -1,0 +1,83 @@
+module Web.Controller.Cells where
+
+import Web.Controller.Prelude
+import Web.View.Cells.Index
+import Web.View.Cells.New
+import Web.View.Cells.Edit
+import Web.View.Cells.Show
+import Application.Logic.CarpetCentral4 hiding ((|>) , Cell)
+import Application.Logic.Carpets4 hiding (World)
+import Application.Logic.Graph4
+import Application.Logic.Worlds
+import Application.Logic.BasicFunctions
+import Data.List.Split (wordsBy)
+import Data.Text (unpack)
+instance Controller CellsController where
+
+    action CellsAction = do
+        cells <- query @Cell |> fetch
+        render IndexView { .. }
+
+    action NewCellAction { questId }= do
+        let cell = newRecord
+	        |> set #questId questId
+        quest <- fetch questId
+        render NewView { .. }
+
+    action ShowCellAction { cellId } = do
+        cell <- fetch cellId
+        render ShowView { .. }
+
+    action EditCellAction { cellId } = do
+        cell <- fetch cellId
+        render EditView { .. }
+
+    action UpdateCellAction { cellId } = do
+        cell <- fetch cellId
+        cell
+            |> buildCell
+            |> ifValid \case
+                Left cell -> render EditView { .. }
+                Right cell -> do
+                    cell <- cell |> updateRecord
+                    setSuccessMessage "Cell updated"
+                    redirectTo EditCellAction { .. }
+	--action copyCelAction { cellId , 
+    action CreateCellAction = do
+        let cell = newRecord @Cell
+        cell
+            |> buildCell
+            |> ifValid \case
+                Left cell ->  do
+                	quest <- fetch cell.questId
+                	render NewView { .. } 
+                Right cell -> do
+                    cell <- cell |> createRecord
+                    setSuccessMessage "Cell created"
+                    redirectTo ShowQuestAction { questId = cell.questId }
+    action CopyCellAction { cellId , newQuestId } = do
+		oldCell <- fetch cellId		
+		let cell = newRecord @Cell 	|> copyFields @["pos","assumption","definArr","info","direction"] oldCell |> set #questId newQuestId
+		cell
+			|> buildCell
+			|> ifValid \case
+				Left cell ->  do
+                                  quest <- fetch cell.questId
+				  render NewView { .. }  --render ShowQuestAction { questId = cell.questId } --
+				Right cell -> do
+                                  cell <- cell |> createRecord
+                                  setSuccessMessage "Cell copied"
+                                  redirectTo ShowQuestAction { questId = cell.questId } --}
+    action DeleteCellAction { cellId } = do
+        cell <- fetch cellId
+        deleteRecord cell
+        setSuccessMessage "Cell deleted"
+        redirectTo CellsAction
+
+buildCell cell = cell
+    |> fill @["questId", "pos", "direction", "assumption" , "info","definArr"]
+
+buildLogicCell :: Cell -> LogicalCell   
+buildLogicCell c = (c.pos , infoToLogicalInfo ((map unpack $ c.info))  (map toDir $ (map unpack $ c.direction)) (c.definArr))
+ 
+

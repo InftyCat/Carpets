@@ -1,0 +1,1 @@
+ALTER TABLE cells ADD COLUMN parent_id UUID DEFAULT null;

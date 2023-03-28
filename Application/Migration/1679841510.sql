@@ -1,0 +1,1 @@
+ALTER TABLE quests ALTER COLUMN org SET DEFAULT true;

@@ -1,0 +1,1 @@
+ALTER TABLE cells ADD COLUMN defin_arr INT[] DEFAULT '{}' NOT NULL;
