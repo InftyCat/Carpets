@@ -564,7 +564,7 @@ endProof pt = let
 addAssEndo :: MQuest -> Maybe MQuest
 addAssEndo q = do
 					aim <- getAimSafe =<< mquestToQuestSafe q
-					return $ addAssStrict aim q  --if ((isConstMap . snd) aim) then return q else 
+					if ((isConstMap . snd) aim) then return q else return $ addAssStrict aim q  --
 
 assoc :: Functor f => (f :*: (g :*: h)) b -> ((f :*: g) :*: h) b
 assoc = bAction . bAction . fmap action . action
