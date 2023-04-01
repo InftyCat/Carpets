@@ -32,7 +32,10 @@ cSP f = \(x,y) -> (x, f (x,y)) -- fmap f . repl --
 stdMaybe :: Bool -> a -> Maybe a
 stdMaybe b x = if b then Just x else Nothing
 stdM :: Monad m => Bool -> (a -> m a) -> (a ->m a)
+
 stdM b f = if b then f else return
+stdM' :: Monad m => (m a -> Bool) -> (a -> m a) -> ( a -> m a)
+stdM' nothing f x = if (nothing $ f x) then return x else f x
 stdEndo :: Bool -> (a -> a) -> (a -> a)
 stdEndo b f = if b then f else id
 bra :: [a] -> [Int]
@@ -40,6 +43,9 @@ bra l = [0..length (l) - 1]
 type Edge = (Int,Int)
 maybePt :: (a -> Maybe a) -> a -> a
 maybePt f x = fromMaybe x (f x)
+continueIf :: Bool -> Maybe ()
+coninueIf True = Just ()
+continueIf False = Nothing
 printFold :: (Functor t, Foldable t, Show a) => String -> t a-> String
 printFold t = foldlMon (\a x->a ++ t ++ x) . fmap (unpack . show)
 foldlMon :: (Foldable t, Monoid a) => (a -> a -> a) -> t a -> a
@@ -100,5 +106,8 @@ instance (Monad m, Monad t, Traversable t) => Monad (Compose m t) where
 safehead :: [a] -> Maybe a
 safehead [] = Nothing
 safehead (x:xs) = Just x
+safelast :: [a] -> Maybe a
+safelast [] = Nothing
+safelast xs = Just $ last' xs
 subList :: (Eq a) => [a] -> [a] -> Bool
 subList as bs = all (\a -> a `elem` bs) as

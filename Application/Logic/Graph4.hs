@@ -81,10 +81,16 @@ inducedGraph i (Graph l) =gmap (filter (/= i)) $ graph $ insertSomething i (\_ -
 
 addEquivalence :: Edge -> VGraph -> VGraph -> VGraph
 addEquivalence (i,j) basis=let [i',j'] = sortBy compare [i,j] in safeClosureIn (getAllEdges basis) . addEdgeV' (i',j')-- graph . (insertSomething i' (j':)) . adja.
-type EdgeInf = (Int,(Dir,[Int]))
+--type EdgeInf = (Int,(Dir,[Int]))
+data EdgeInf = EdgeInf { getDirection :: Dir , getEdgePath :: [Int] , trg :: Int , isHomo :: Bool } deriving (Eq, Show)
+aHomomorphism :: VGraph -> Edge -> Bool
+aHomomorphism vg (src , trg)  = null $ filter (== (src , (trg , False))) $ map (fmap (\e -> (e.trg , e.isHomo))) $ edgeMaps vg
+{--
 getDirection :: EdgeInf -> Dir
 getDirection = fst . snd
+
 getEdgePath = (snd . snd) :: EdgeInf -> [Int]
+--}
 newtype VGraph = VGraph {vgraph :: (((Int,[Int]),[(Int,EdgeInf)]),Graph)} deriving Eq
 instance Show VGraph where
   show = showGraphInfo (unpack . tshow)
@@ -97,7 +103,7 @@ dat = fst . vgraph
 edgeMaps :: VGraph -> [(Int,EdgeInf)]
 edgeMaps = snd . dat
 getPureEdgeMaps :: VGraph -> [Edge]
-getPureEdgeMaps  = map (fmap fst) . edgeMaps
+getPureEdgeMaps  = map (fmap trg) . edgeMaps
 len :: VGraph -> Int
 len (VGraph (((x,y),p),z))= x
 getAllEdges0 :: VGraph -> [(Int,Int)]

@@ -44,7 +44,7 @@ sol' x
         --start >>= out [1,2,5] >>= out [1,4] >>= arg [5,4] >>= out [4,3,6] >>= out [4,7] >>= arg [7,6,3] >>= out [3,0] >>= spl (0,1) [1] >>= tOT >>= arg [4,1] >>= tOT <&> switch >>= arg [2,1]
         | x == lars    =      start >>= uni [[6,3,4],[6,7,4,5], [4,1,2], [5,2,1,0]] >>= spl (0,3) [3,6] >>= tOT >>= arg [4,3,6]
         | x == injIntro = 	  start >>= out [0,1,3] >>= arg [3,0] 
-        | x == injComp = 	  start >>= uni [[0,1,3,0]]
+        | x == injComp = 	  start >>= uni [[0,1,3],[0,3,1,0]]
 
 sol'' x
         | x == viererInj =     start >>= uni [[2,3],[2,6,7,3,2,1,5],[6,5,4,0]] >>= spl (0,1) [1,2] >>= tOT >>= uni [[5,1,2]]
@@ -74,11 +74,11 @@ ergSnakeExact =      snakeEx
                           >>= spl (1,2) [2] >>= tOT >>= arg [5,2] >>= edg [2,9] >>= tOT >>= reduce >>= arg [9,2] >>~ fin                          
     ||> start >>= out [2,1] >>= choice (1,2) >>= choice (2,9) >>= arg [9,2] >>~ fin
     --note that by the last version of snakeEx the remaining quest is not possible
-ergSnake' =  snake 
-	>|> kerFactorization 
-	>|> kerFactorization
+snake' = snake >|> kerFactorization >|> kerFactorization
+snake'' =  snake'
 	||> start >>= uni [[2,5,4,7],[5,8,7,6,9]] >>~ fin
 	||> start >>= choice (2,9) >>= uni [[2,5,4,3]] >>= spl (3,6) [6,9] >>= tOT >>= uni [[7,6]] >>=  arg [6,9] >>~ fin -- inserting "reduce >->" before "arg [6,9]" yields an exception
+ergSnake' = snake''	
 	>|> cokerFactorization 
 	>|> cokerFactorization 
                     --  ergSnake' ||> start >>= out [2,9,10] >>= choice (2,9) >>= arg [9,6] >>= out [6,3] >>= spl (3,4) [4,5,2,9] >>= tOT >>= arg [7,4] >>= out [4,1] >>= reduce >>= spl (1,2) [2] >>= tOT >>= arg [5,2] >>= edg [2,9] >>= tOT >>= reduce >>= arg [9,2] >>~ fin ||> start >>= out [2,1] >>= choice (1,2) >>= choice (2,9) >>= arg [9,2] >>~ fin
@@ -92,4 +92,10 @@ checkAllSols = mapM checkSols . map (allQuests !! ) $ ([0..9] :: [Int])
 ergExactIntro = exactIntro ||> start >>= uni [[4,1,2],[4,5,2,1,0,3,4]] >>~ fin ||> start >>= uni [[4,3,0,1,2,5,4]] >>~ fin
 tc3Sol = tc3 >|> tc3Inj >||> tc3Ex2 >||> tc3Ex1 >|> tc3Surj
 
+
+
+
+test =  start >>= uni [[2,5,8,7,6,9]]
+sh = snake' ||> test >>~ fin
+Just s'  = snake'
 

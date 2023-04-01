@@ -45,7 +45,7 @@ instance View ShowView where
 		</form>
 		
         <p>World : {quest.worldId}</p>
-        <span style="white-space: pre-line">  {(questToLogicQuest world quest.cells)}{map (\c -> c.info) quest.cells}  </span>
+        <span style="white-space: pre-line">  {(questToLogicQuest world quest.cells)} </span>
 	<a href={NewCellAction quest.id}> Add Cell </a>
 
     |]

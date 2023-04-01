@@ -9,6 +9,7 @@ import Data.List ((!!))
 import Data.Foldable (foldl)
 import Data.List ((!!) , elemIndex)
 import Data.Foldable (foldl)
+type ZToZ = Bool
 newtype Sta v = Sta {sta :: (Status,v)} deriving Eq
 instance Show (Sta VGraph) where
   show = \(Sta (b,g)) -> showGraphInfo' (printCell b ) g
@@ -41,8 +42,9 @@ newtype SEQ2 = SEQ2 {pair :: [SEQ]} deriving Eq
 
 --[onE, infty ,nuL] = map (std dim') [one,inft,nul]
 --[nuL,ko,ok,kk] = map (SEQ2 . (\(x,y) -> [x,y])) [(one,one),(nul,nul),(kerim,one),(one,kerim),(kerim,kerim)]
-inc :: Int -> SEQ ->  SEQ
-inc b (SEQ n) = SEQ $ 3 `min` (0 `max` (n-b))
+inc :: ZToZ -> Int -> SEQ ->  SEQ		-- The first parameter tells you if zero has to be mapped to zero
+inc False 1 (SEQ 0) = SEQ $ 1
+inc bool b (SEQ n) = SEQ $ 3 `min` (0 `max` (n-b))
 
 instance Semigroup SEQ2 where
   (<>) = \ (SEQ2 x) (SEQ2 y) -> SEQ2 (zipWith (<>) x y)
@@ -85,17 +87,17 @@ incl' :: DIM (Info -> SEQ -> SEQ2)
 incl' d i s = SEQ2 $ insertData i d (pure s) $ replicate (length d) one
 modX :: DIM (Info -> SEQ2 -> SEQ2)
 modX d i = SEQ2 . insertData i d (\x -> if x==kerim then one else x) . pair
-f d x = f' d (Info x)
-f' :: DIM (Info -> SEQ2 -> SEQ2)
-f' d x= incl' d x . inc (ii' (fst $ info x)) . goTo1Dim d x . modX d x
+f d b  x = f' d b (Info x)
+f' :: DIM (ZToZ -> Info -> SEQ2 -> SEQ2)
+f' d b x= incl' d x . inc b (ii' (fst $ info x)) . goTo1Dim d x . modX d x
 ii (-1) = Ker
 ii 1 = Im
 ii' Ker = (-1)
 ii' Im = 1
 inv = ii . negate . ii'
 goTo1Dim d (Info (x, i)) = \s -> head' . pair $ repSEQE' (SEQ2 [one, kerim], SEQ2 [kerim, one]) $ SEQ2 [proj d (x, i) s, proj d (inv x, i) s]
-fNaive :: DIM ((Dir, Int) -> SEQ2 -> SEQ2)
-fNaive d (i,j) = incl d (ii j, i). inc j . proj d (ii j, i)
+--fNaive :: DIM ((Dir, Int) -> SEQ2 -> SEQ2)
+--fNaive d (i,j) = incl d (ii j, i). inc j . proj d (ii j, i)
 type Status = ([Info],[SEQ2])
 
 
@@ -120,7 +122,7 @@ pushAlong vg d bwds x = safehead $ filter (\y -> (stdEndo bwds flipPair (x,y)) `
 getInc' :: VGraph -> [Int] -> Dir
 getInc' = fmap (fromJust) . safeGetInc'
 getEdgeMapInformation :: VGraph -> Edge -> Maybe EdgeInf
-getEdgeMapInformation vg e =safehead $ map snd $ filter (\m -> elem (fmap fst m) [e, flipPair e]) $ edgeMaps vg
+getEdgeMapInformation vg e =safehead $ map snd $ filter (\m -> elem (fmap trg m) [e, flipPair e]) $ edgeMaps vg
 
 
 getInfoC :: Int -> InfoC
@@ -167,7 +169,7 @@ cG' f g = VGraph (dat g,f $ gg g)
 -----------------------
 ---laser happen in the status not in the graph
 laserimg :: DIM (VGraph -> [SEQE] -> SEQ2 -> Edge -> SEQ2)
-laserimg d vg mons basev (v,w) = endo (mons !! w) $ f' d (getInc vg (v,w)) (basev)
+laserimg d vg mons basev (v,w) = endo (mons !! w) $ f' d (aHomomorphism vg (v,w)) (getInc vg (v,w)) (basev)
 laser :: VGraph -> [SEQE] -> Edge -> Status -> Status
 laser vg mons (v,w) base = let
                             e = endo $ mons !! w

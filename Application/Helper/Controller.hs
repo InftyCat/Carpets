@@ -14,7 +14,7 @@ type LogicalCell = Application.Logic.CarpetCentral4.Cell
 
 
 infoToLogicalInfo :: [String] -> [Dir] -> [Int] -> L
-infoToLogicalInfo ["WellDefined"] [d] [] =  WellDefined d
+infoToLogicalInfo ["WellDefined"] [d] [x] =  WellDefined d x
 infoToLogicalInfo ["Defin"] [d] arr = Defin (d , arr)
 infoToLogicalInfo [x1 , x2] [d1 , d2] [] = I (Info (toInfoC x1 , d1)) (Info (toInfoC x2 , d2))
 infoToLogicalInfo ["Epi"] [d] [] = Epi d

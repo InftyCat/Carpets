@@ -6,7 +6,7 @@ import Application.Logic.Carpets4
 import Application.Logic.CarpetTrees3
 import Application.Logic.Graph4
 import Application.Logic.BasicFunctions
-import IHP.RouterPrelude hiding (foldM , empty , comparing , I)
+import IHP.RouterPrelude hiding (foldM , empty , comparing , I, choice)
 import Data.Traversable
 import Control.Applicative hiding (empty)
 import Data.List ((!!))
@@ -42,7 +42,7 @@ fromName :: Name -> (Dir -> Lift)
 fromName Epi = epi
 fromName Mono = mono --}
 
-data Jo a b = WellDefined b | Defin (b,[Int]) | I a a | Epi b | Mono b | Exact b | Map Int (Jo a b) deriving Eq
+data Jo a b = WellDefined Dir Int | Defin (b,[Int]) | I a a | Epi b | Mono b | Exact b | Map Int (Jo a b) deriving Eq
 instance (Show a, Show b) => Show (Jo a b) where
   show (I x y) = show x ++ "->" ++ show y ++ ","
   show (Epi x) = show x ++ " Epi,"
@@ -50,7 +50,7 @@ instance (Show a, Show b) => Show (Jo a b) where
   show (Exact x) = show x ++ " Exact,"
   --show (Empty x) = show x
   show (Map i f) = "~>" ++ show i ++ " " ++ show f ++ ","
-  show (WellDefined x) = " welldefined "
+  show (WellDefined b y) = " welldefined "
   show (Defin (y,x)) = show y ++ " " ++ arrWithLetter "-" (map show x)
   
 
@@ -63,11 +63,15 @@ isMap (Map i x)  = True
 isMap _ = False -- = '~' `elem` (show y)
 isConstMap (Defin (_,_)) = True --(Map i (Defin (x,_))) = True
 isConstMap _ = False
-isWDMap :: (Show a, Show b)=> Jo a b -> Bool
-isWDMap (Map i (WellDefined x)) = True
-isWDMap _ = False
-isDefin :: Jo a b -> Bool
-isDefin (Defin (y,x)) = True
+{--isWDMap :: (Show a, Show b)=> Jo a b -> Bool -- VERY !!!!
+isWDMap (Map i (WellDefined b x)) = True
+isWDMap _ = False--}
+fromWellDefined :: Cell -> Maybe Edge
+fromWellDefined ( x , WellDefined d y) = Just (x , y)
+fromWellDefined _ = Nothing
+
+isWellDefined (WellDefined b x) = True
+isWellDefined _ = False
 isDefin x = False
 isExact :: Jo a b -> Bool
 isExact (Exact b) = True
@@ -79,7 +83,7 @@ isAssumptionable (Exact x) = True
 isAssumptionable (I x y) = True
 isAssumptionable (Map i (Defin x)) = True
 isAssumptionable (Defin x) = True
-isAssumptionable (WellDefined y) = True
+isAssumptionable (WellDefined b y) = True
 
 
 
@@ -90,7 +94,7 @@ project (Exact x) = x
 project (I x y) = snd $ info x
 project (Map i f) = project f
 --project (Empty x) = x
-project (WellDefined x) =x
+project (WellDefined x c) =x
 project (Defin (x,_)) =x
 type L = Jo Info Dir
 tfDir :: Bool -> Dir -> Dir
@@ -107,7 +111,7 @@ transformL b (Mono x) = Mono (tfDir b x)
 transformL b (Exact x) = Exact (tfDir b x)
 transformL b (Map i f) = Map i (transformL b f)
 --transformL b (Empty x) = Empty (tfDir b x)
-transformL b (WellDefined x) = WellDefined (tfDir b x)
+transformL b (WellDefined x c) = WellDefined (tfDir b x) c
 transformL b (Defin (x,y)) = Defin (tfDir b x, y)
 --(-->) :: a -> a -> Jo a Dir
 x --> y = I (Info x) (Info y)
@@ -118,7 +122,7 @@ toLift (Epi y) = epi y
 toLift (Mono y) = mono y
 toLift (Exact y)=concatLifts $  map toLift $ exact y
 toLift (Map i f) = toLift f
-toLift (WellDefined y) = (st nul) ~> (st nul)
+toLift (WellDefined d y) = (st nul) ~> (st nul)
 
 (~>) :: DIM SEQ2 -> DIM SEQ2 -> Lift
 start ~> end = (start,\d -> repSEQE (start d, end d))
@@ -154,16 +158,16 @@ isConcatenated (Epi y) = False
 isConcatenated (Mono y) = False
 isConcatenated (Exact y)= True
 isConcatenated (Map i (Defin (_,_))) = True
-isConcatenated (WellDefined y) = False
+isConcatenated (WellDefined b y) = False
 ----- showCell showCellTree ------------
 extendL :: L -> [L]
 extendL (Exact x)=  [ (Ker , x) --> (Im , x), (Im , x) --> (Ker , x)] --std (Exact x) -- 
-extendL (Map i (Defin (x,ar))) = [ Defin (x,ar) , WellDefined x]
+extendL (Map i (Defin (x,ar))) = [ Defin (x,ar) , WellDefined x (last' ar)]
 extendL x = []
 parent :: L -> [L]
 parent (I (Info (x,d)) (Info (y,d'))) = [if ((d == d') && ([Ker , Im] `subList` [x,y] )) then (Exact d) else (I (Info (x,d)) (Info (y,d')))]
 parent (Defin (x,ar)) = [Map (last' ar) (Defin (x,ar))]
-parent (WellDefined x) = []
+parent (WellDefined c x) = []
 parent x = [x]
 -- parent (WellDefined x) = Map i (Defin (x , ar))
 --extensionTree :: Forest L
@@ -296,25 +300,35 @@ addMapsToWorldInfo :: Quest -> WorldInfo -- (WorldInfo,[(Int,L)])
 addMapsToWorldInfo ((x,y), cells) = let
                                   --cs = twoBins (isMap . snd) (init' cells)
                                   maps = getAllAssMapsOrDefin ((x,y),cells)
-                                  in (x,(fst y ++ maps, snd y)) :: WorldInfo
+                                  in (x,(maps, snd y)) :: WorldInfo --filterD $ fst y ++ 
 getAllAssMapsOrDefin :: Quest -> [EdgeMap]
-getAllAssMapsOrDefin = filter ( or . sequence [isMap , isDefin] . snd) . init' . snd
+getAllAssMapsOrDefin = filter ( or . sequence [isMap , isConstMap] . snd) . init' . snd -- TODDO
+getAllDefinMaps :: Quest -> [EdgeMap]
+getAllDefinMaps = filter ( or . sequence [isConstMap] . snd) . init' . snd
 getAllAssMaps :: Quest -> [EdgeMap]
 getAllAssMaps = filter (isMap . snd) . init' . snd
 
 aimFromCell :: Cell -> Int
-aimFromCell (x,Map i _) = i
-aimFromCell (x,_) = x
+aimFromCell (x , Map i _) = i
+aimFromCell (x , Defin (_ , arr)) = last' arr -- PROBLEM WITH welldefined
+aimFromCell (x , WellDefined c y) = y
+aimFromCell (y , _) =  y
 
-getSnd' :: Quest -> (([(Int,SEQE)],SEQ2,(Int,Int)),SEQE)
+getSnd' :: Quest -> (([(Int,SEQE)],SEQ2,(Int,Int)),SEQE) 
 getSnd' q' = let
                 q = (addMapsToWorldInfo q', snd q')
                 pureLifts = (snd q) `comp` (getAllAssMaps q)
-                ai = aimFromCell (last' $ snd q)
+               {-- getTargetFromHypotheticallyWD :: (Int , L) -> Int
+                getTargetFromHypotheticallyWD (x , WellDefined d) = fst $ head' $ 
+					snd $ twoBins snd $ map (\(x' , Defin ( d' , arr)) -> (last' arr , x == x' && d == d') ) (getAllDefinMaps q) 
+					--}
+                aimcell = last' $ snd q
+                ai = aimFromCell aimcell -- if isWellDefined (snd aimcell) then getTargetFromHypotheticallyWD aimcell  else aimFromCell aimcell 
                 ((h,(g,qu)):fs') = map (fmap toLift) $ reverse $ pureLifts
                 fs = fmap (fmap snd) fs'
                 d = getD q
             in ((map (fmap ($ d)) fs, g d, (h,ai)), qu d)
+            --mapConvert :: [Cell] -> [(Int , EdgeInf)]
 getSnd :: Quest -> ([(Int,SEQE)],SEQ2,(Int,Int))
 getSnd = fst . getSnd'
 mons q= buildMons (numNodes q) y where (y,_,_) = getSnd q---- [(2,epi dim hori),(3,mono dim hori)] --
@@ -330,15 +344,28 @@ initBase = liftM4 buildBase mons numNodes getD
 
 base' b = initBase (whichNodes b) --(mons q) --(numNodes q) (getD q) (whichNodes b q) --
 base = base' True
-startWD :: W MQuest ~-~> PTreeVC
+{--startWD :: W MQuest ~-~> PTreeVC
 startWD = bAction $ bAction . Just . fmap initStart -- bAction $ bAction . Just . fmap initStart
-
+--}
 
 initStart :: MQuest -> PTreeVC
 initStart q = ([],leaf $ getCarpet q)
+safeCommand :: (PTreeVC -> MQuest ~-~> PTreeVC) -> PTreeVC -> MQuest ~-~> PTreeVC 
+safeCommand f pt = bAction \q -> let erg = (f pt) `action` q in if isJust (action erg) then erg else return pt -- stdM' (isJust . action)
 start :: MQuest ~-~> PTreeVC
-start = bAction $ toW . Just . initStart
-
+start = startNaive >>= safeCommand choi where
+	choi :: PTreeVC -> MQuest ~-~> PTreeVC 
+	choi pt = bAction $ \q -> bAction (h pt q)
+	-- h :: PTreeVC -> MQuest -> Maybe PTreeVC
+	h pt q = do 
+		edge <- getWDEdge q 
+		action (action (choice edge pt) q)
+getWDEdge :: MQuest -> Maybe Edge
+getWDEdge q = let c = getAim $ mquestToQuest q in fromWellDefined c		 -- do
+			--continueIf $ isWellDefined $ snd $ c 
+			
+startNaive :: MQuest ~-~> PTreeVC
+startNaive = bAction $ toW . Just . initStart
 getCarpet :: MQuest -> Carpet
 getCarpet = getCarpetW True
 getCarpetW :: Bool ->MQuest -> Carpet
@@ -376,13 +403,15 @@ vg' :: MQuest -> VGraph
 vg' = flip deleteAimEdges =<<  vg . mquestToQuest 
 mapConvert :: [Cell] -> [(Int , EdgeInf)]
 mapConvert = (>>= traverse f) where
-	f (Map j (Defin (d,xs))) = [(j,(d,xs))]
-	f (Defin (d,xs)) = [(last' xs , (d,xs))]
+	h :: (Int , (Dir , [Int]), Bool) -> EdgeInf
+	h (i , (d , xs) , b) = EdgeInf { trg = i , getDirection = d , getEdgePath = xs , isHomo = b}
+	f (Map j (Defin (d,xs))) = [h (j,(d,xs) , True)]
+	f (Defin ( d , xs)) = [h (last' xs , (d , xs) , False)]
 	f x = []
 
 edgeMapToEdge :: EdgeMap -> Edge
 edgeMapToEdge (i, Defin (_ , ar)) = (i,last' ar)
-addEdgeMapsFromQ :: VGraph -> Quest ->  VGraph
+addEdgeMapsFromQ :: VGraph -> Quest ->  VGraph -- TODDO
 addEdgeMapsFromQ g q = foldl (\gr ed -> addEdgeV ed gr) g $ (mapConvert) $ (fst . snd . fst $ q) where
 	
 	
@@ -423,6 +452,8 @@ mquestToQuest' :: Path -> MQuest -> Quest
 mquestToQuest' i (MQuest (w,P (p,q))) =  flipPair $ fmap (addMapsToWorldInfo . flipPair) $ repl (gumpToList p ++ [access i q ],w)
 mquestToQuest :: MQuest -> Quest
 mquestToQuest mq = mquestToQuest' (getFirstLeafPath . ai'. snd . mquest $ mq) mq
+mquestToQuestSafe :: MQuest -> Maybe Quest
+mquestToQuestSafe mq = if (null $ undForest $ snd $ pp $ snd $ mquest mq) then Nothing else Just $ mquestToQuest mq
 world =(\q -> (mons q ,vg q)) . mquestToQuest :: MQuest -> World
 qToIw = cofmap (\q -> (endPos $ mquestToQuest q, world q))
 apCore :: Monad m => (a -> Edge -> PTreeVC -> m PTreeVC) -> [Int] -> PTreeVC -> a -> m PTreeVC
@@ -471,10 +502,12 @@ fin w = bAction (\q -> let
 
                                   b2 = isConstMap $ snd $ cell
                                   edge = (fst cell, aimFromCell cell)
-                                  path = findRoute edge  . fromJust $ mes
-                                  b = isWDMap $ snd $ cell
-                                  end = stdEndo b (addMapToMQuest edge (project $ snd cell, path))                                 
-                               in bAction $  sequenceA $ writer (fmap (end) . action (endProof pt) $ q, mes))
+                                  path = concat $ maybeToList (fmap (findRoute edge) $ mes)
+                                  --b =  isWDMap $ snd $ cell
+                                  end = id -- stdEndo b (addMapToMQuest edge (project $ snd cell, path)) 
+                                  addTheConstructedPath =  stdEndo b2 (addMapToMQuest edge (project $ snd cell, path))                                 
+                               in bAction $  sequenceA $ writer (fmap (end . addTheConstructedPath) . action (endProof pt) $ q, mes))
+                               
 toW :: (Monad g, Functor f) => f a -> (f :*: g) a
 toW = bAction . fmap return
 swapSides :: MQuest -> MQuest
@@ -483,14 +516,15 @@ swapSides = qmap (flipP')
 nn :: Int -> (Int,Int)
 nn leng = (leng,leng*leng)
 line = ((map Info [(Ker, Hori), (Im, Hori)],nn 3),([],[0..2])) :: WorldInfo
-exactReDef =swapSides `fmap` exactDef
+{--exactReDef =swapSides `fmap` exactDef
 exactDef = Just  . mquestToMQuest . questToMQuest $ (line, [(1, (Ker, Hori) --> (Im, Hori)), (1, (Im, Hori) --> (Ker, Hori)), (1,Exact Hori)]) :: Maybe MQuest
+--}
 --mapdef = Just . mquestToQuest. questToMQuest $ (line, [(0,Map 1 (Empty Verti)), (0, Map 1 (WellDefined Verti)), ()])
 shrinkAssumptions :: MQuest -> MQuest
 shrinkAssumptions = qmap (\ (P (a,b)) -> P (shrinkGump a , b)) --shrinkGump
 reformAims :: MQuest -> MQuest
 reformAims =  (qmap (fmapP (extendAll . shrinkGump)))
-shrinkAtPos pos =fromJust . fmap swapSides . action (replaceMQuest ([0],pos) exactReDef). swapSides
+--shrinkAtPos pos =fromJust . fmap swapSides . action (replaceMQuest ([0],pos) exactReDef). swapSides
 addAss :: Cell -> MQuest -> MQuest
 addAss c= shrinkAssumptions . qmap (addAssCore c)
 addAssStrict c= stdEndo (isAssumptionable (snd c)) $ addAss c
@@ -499,11 +533,13 @@ addAssCore :: Cell -> PropCell -> PropCell
 addAssCore c (P (ass,ai)) = P((addCell ass c), ai)
 addMapToMQuest :: Edge -> (Dir,[Int]) -> MQuest -> MQuest
 addMapToMQuest e ls = let func = \q  -> MQuest (addMapsToWorldInfo . mquestToQuest $ q, snd $ mquest $ q)
-                      in func .  addAss (fst e, Map (snd e) (Defin ls))
+                      in func .  addAss (fst e, (Defin ls)) --Map (snd e) 
 
 
 getAim :: Quest -> Cell
 getAim = last' . snd
+getAimSafe :: Quest -> Maybe Cell
+getAimSafe = safelast . snd
 eA :: Prop Cell -> Prop Cell
 eA pc = (elimA (getFirstLeafPath (ai' pc)) pc) 
                   
@@ -513,15 +549,22 @@ killEmptyParents pc = if
 					fmap (isConcatenated . snd) (safehead . gumpToList . ai' $ pc) == Just True 
 					then  eA pc else pc
 
+elimAction :: Prop Cell -> Prop Cell
+elimAction pc =  tillTerminate killEmptyParents $ eA pc --  if (isConstMap $ snd $ headAI' pc) then replaceStd (0 ::Int) (newcell pc) pc else 
+                
 endProof :: PTreeVC -> MQuest ~~> MQuest
 endProof pt = let
-                  newcell = (insertLeft)  . fmap ( \(Map i (Defin (h,_))) -> Map i (WellDefined h)). headAI'  :: PropCell -> PropCell-- pc = let (Map i (Empty h)) = snd $ cell pc in [(fst cell, Map i (WellDefined h))]
+--                  newcell = (insertLeft)  . fmap ( \((Defin (h,_))) -> Map i (WellDefined h)). headAI'  :: PropCell -> PropCell-- pc = let (Map i (Empty h)) = snd $ cell pc in [(fst cell, Map i (WellDefined h))]
                   
-                  elimAction :: Prop Cell -> Prop Cell
-                  elimAction pc =  tillTerminate killEmptyParents $ eA pc --  if (isConstMap $ snd $ headAI' pc) then replaceStd (0 ::Int) (newcell pc) pc else 
-              in bAction (\q -> stdMaybe (null . allLeafs . snd . reduction pt $ q) $ addAssStrict (getAim $ mquestToQuest q) $ qmap (elimAction) $ q)
+                  
+              in bAction (\q ->(stdMaybe (null . allLeafs . snd . reduction pt $ q) q) 
+				<&> maybePt addAssEndo 
+				<&> qmap (elimAction))
 
-
+addAssEndo :: MQuest -> Maybe MQuest
+addAssEndo q = do
+					aim <- getAimSafe =<< mquestToQuestSafe q
+					return $ addAssStrict aim q  --if ((isConstMap . snd) aim) then return q else 
 
 assoc :: Functor f => (f :*: (g :*: h)) b -> ((f :*: g) :*: h) b
 assoc = bAction . bAction . fmap action . action
@@ -538,10 +581,10 @@ type a :*: b = Compose a b
 
 (||>) ::Maybe w -> (w ~-~> a) -> Maybe a
 infixl 0 ||>
-w ||> x = fmap (fst . runWriter) (w |> x)
-(|>) :: Maybe w -> (w ~-~> a) -> Maybe (W a)
-infixl 0 |>
-w |> (x) = w >>= (action . action x)
+w ||> x = fmap (fst . runWriter) (w |||> x)
+(|||>) :: Maybe w -> (w ~-~> a) -> Maybe (W a)
+infixl 0 |||>
+w |||> (x) = w >>= (action . action x)
 infixl 0 >|>
 (>|>) :: Maybe MQuest -> Maybe MQuest -> Maybe MQuest
 a >|> b = a >>= action (replaceMQuest ([0],[[0]]) b) --let
