@@ -205,19 +205,22 @@ safeLaser (m,wg) e (Sta (b,g)) = let
 addArg0Edges :: World -> [Int] -> Int -> Carp -> Carp
 addArg0Edges wld (ng) aim = let aZE (b,vg)= addZeroEdgesCore wld (ng `comp` [aim]) b vg vg in cSP aZE
 ------------------------------------------
---An equivalence means, that the maps preserves the (hidden) basepoints.
+--An equivalence means, that the maps preserves the (hidden) elements: If there is an edge from (A , a) to (B , b), then a : A has to be mapped to b : B under the homomorphism.
 changeWeight :: Int -> SEQ -> Status -> Status
 changeWeight v i b = insertSomething v (\_ -> std (getDim b) i) `fmap` b
-
-addEq' :: (Bool,Bool) -> World -> Edge -> Carpet -> Maybe Carpet     -- changes almost only the graph!
-addEq' (careless,del) w e (Sta (b,g)) = let
+data Flags = Flags { 
+	careless :: Bool , 
+	del :: Bool , 
+	isHom :: Bool }
+addEq' :: Flags -> World -> Edge -> Carpet -> Maybe Carpet     -- changes almost only the graph!
+addEq' f w e (Sta (b,g)) = let
                               f1 = (addEquivalence e (snd w) )--f1 = (forgetTrash (gg $ snd w) . addEquivalence e) :: Graph -> Graph
                               f2 = (addNode (snd e)) :: (VGraph -> VGraph)
-                              f3 = stdEndo (whenToDeleteNode del w b e) $ fmap ((deleteNode (snd e)) :: (VGraph -> VGraph)) . flipPair . fmap (changeWeight (snd e) one) . flipPair
+                              f3 = stdEndo (whenToDeleteNode (del f) w b e) $ fmap ((deleteNode (snd e)) :: (VGraph -> VGraph)) . flipPair . fmap (changeWeight (snd e) one) . flipPair
                               --basis = (changeWeight (snd e) one b,g) :: Carp -- here was inft written before
-                           in if (edgeInVGraph g e) then Just $ fmap f2 (Sta (b,g)) else stdMaybe (careless || isAddable w b e) $ Sta $ (( f1 . f2)  `fmap` (f3 (b,g))) --f1 `cG`
+                           in if (edgeInVGraph g e && f.isHom) then Just $ fmap f2 (Sta (b,g)) else stdMaybe (f.careless || isAddable w b e) $ Sta $ (( f1 . f2)  `fmap` (f3 (b,g))) --f1 `cG`
 addEq  :: World -> Edge -> Carpet -> Maybe Carpet     -- changes almost only the graph!
-addEq = addEq' (False,True)
+addEq world e = addEq' (Flags {careless = False, del = True , isHom = aHomomorphism (snd world) e}) world e
 whenToDeleteNode :: Bool-> World -> Status -> Edge -> Bool
 whenToDeleteNode del w b e = del && (not $ is0Addable w b e)
 deleteNode :: Int -> VGraph -> VGraph
@@ -233,12 +236,14 @@ isAddable w s e = isAddableNaive s e || is0Addable w s e
 -- after that it has to laser again, since the target value was set to infty
 --outerLaser w e = overwrite w e <=< safeLaser w e
 
-overwrite' :: (Bool,Bool) ->  World -> Edge -> Carpet -> Maybe Carpet
-overwrite' (b,del) w e = safeLaser w e <=< addEq' (b,del) w e
+overwrite' :: Flags ->  World -> Edge -> Carpet -> Maybe Carpet
+overwrite' f w e = safeLaser w e <=< addEq' f w e
 overwrite :: World -> Edge -> Carpet -> Maybe Carpet
-overwrite = overwrite' (False,True)
+overwrite = overwrite' (Flags {careless = False , del = True , isHom = True } )
 addEdgePathCareLess :: World -> [Int] -> Carpet -> Maybe Carpet
-addEdgePathCareLess w es c = (foldl (>=>) pure $ zipWith (\b -> overwrite' (True,b) w) (replicate (length (toEdges es) -1 ) True ++ [not (edgeInVGraph (snd $ sta c) (head' es, last' es))]) (toEdges es)) c
+addEdgePathCareLess w es c = foldl (>=>) pure (zipWith (\b e -> overwrite' (Flags {careless = True, del = b , isHom = aHomomorphism (snd w) edg}) w e) arr (toEdges es)) c where
+	arr = replicate (length (toEdges es) -1 ) True ++ [not (edgeInVGraph (snd $ sta c) edg)]
+	edg = (head' es, last' es)
 overwriteAble :: World -> Int -> Edge  -> Carpet -> Maybe Carpet
 overwriteAble w i e c = let (Sta (_,vg)) = c in stdMaybe (is0Addable w (fst $ sta c) e || i /= snd e || not (i `elem` nodes vg)) c
 ----------------------

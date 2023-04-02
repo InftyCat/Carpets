@@ -93,9 +93,11 @@ ergExactIntro = exactIntro ||> start >>= uni [[4,1,2],[4,5,2,1,0,3,4]] >>~ fin |
 tc3Sol = tc3 >|> tc3Inj >||> tc3Ex2 >||> tc3Ex1 >|> tc3Surj
 
 
-
-
+snCnst = snake' ||> start >>= uni [[2,5,4,7],[5,8,7,6,9]] >>~ fin
+Just w = snCnst <&> world
 test =  start >>= uni [[2,5,8,7,6,9]]
 sh = snake' ||> test >>~ fin
+Just c = snake' ||> start >>= uni [[2,5,4,7],[5,8,7,6,9]] >>~ fin ||> startNaive >>= uni [[2,5,4,3]] <&> headCarpet 
+
 Just s'  = snake'
 

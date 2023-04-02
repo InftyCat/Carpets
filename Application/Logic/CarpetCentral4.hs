@@ -553,13 +553,16 @@ elimAction :: Prop Cell -> Prop Cell
 elimAction pc =  tillTerminate killEmptyParents $ eA pc --  if (isConstMap $ snd $ headAI' pc) then replaceStd (0 ::Int) (newcell pc) pc else 
                 
 endProof :: PTreeVC -> MQuest ~~> MQuest
-endProof pt = let
+endProof pt = bAction (\q ->(stdMaybe (null . allLeafs . snd . reduction pt $ q) q) 
+				<&> maybePt addAssEndo 
+				<&> qmap (elimAction))
+				{--
+				 let
 --                  newcell = (insertLeft)  . fmap ( \((Defin (h,_))) -> Map i (WellDefined h)). headAI'  :: PropCell -> PropCell-- pc = let (Map i (Empty h)) = snd $ cell pc in [(fst cell, Map i (WellDefined h))]
                   
                   
-              in bAction (\q ->(stdMaybe (null . allLeafs . snd . reduction pt $ q) q) 
-				<&> maybePt addAssEndo 
-				<&> qmap (elimAction))
+              in 
+				--}
 
 addAssEndo :: MQuest -> Maybe MQuest
 addAssEndo q = do
